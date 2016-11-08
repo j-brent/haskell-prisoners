@@ -25,7 +25,7 @@ So, loosely speaking, we have two sorts of algorithms: strategies and payoff rul
 
 We need three base datatypes, one for the players, one for the payoffs, and one for the moves. I use the "data" construct instead of either the "newtype" (we need several constructors for each of the basic types) or the "type" (it seems cleaner to avoid aliasing and to directly use new datatypes).
 
-I use the "deriving" clause to automatically equip the datatypes with equality, order, and the ability to show and read the values respectively. Not sure what the difference between the classes "Enum" and "Ord" is exactly, and if we really need both of them in all three types. An important thing about the Enum class is that we can always turn values into integers using its method "fromEnum", which is a poor's man way to do something like this; a more sophisticated way would be to say
+I use the "deriving" clause to automatically equip the datatypes with equality, order, and the ability to show and read the values respectively -- in Haskell words, every argument of the "deriving" clause stands for a "type class", into an instance of which we want to turn the datatype in question. Not sure what the difference between the classes "Enum" and "Ord" is exactly, and if we really need both of them in all three types. An important thing about the Enum class is that we can always turn values into integers using its method "fromEnum", which is a poor man's way to do something like this; a more sophisticated way would be to say
 
  data PayoffP a = NoneP a | SomeP a | MuchP a | AllP a
 
@@ -64,7 +64,6 @@ type Game = [MoveState]
 
 --height 2
 
-type PayoffState = Player -> MoveState -> Payoff --after some reflection it becomes clear that a payoff state should depend on a move state: there are no payoffs before moves have been made, and the payoffs actually depend on the kinds of moves
 type MoveStateUpdate = PayoffFunction -> MoveState -> MoveState --this turns out to be the only update function that we need, namely a move state update
 
 {- TERMS
@@ -126,11 +125,11 @@ pf_p Defect Defect = Some
 
 pf_p_2 :: Move -> Move -> Payoff
 
-pf_p_2 s1 s2
- | sdiff > 0 = All
- | sdiff == 0 = if s1 == Cooperate then Much else Some
- | sdiff < 0 = None 
-  where sdiff = (fromEnum s1) - (fromEnum s2)
+pf_p_2 m1 m2
+ | mdiff > 0 = All
+ | mdiff == 0 = if m1 == Cooperate then Much else Some
+ | mdiff < 0 = None 
+  where mdiff = (fromEnum m1) - (fromEnum m2)
   
 {-
 
@@ -161,8 +160,20 @@ In order to define the move state update function of Prague, it helps to break t
 pval :: Payoff -> PayoffValue
 pval pf = fromEnum pf
 
+{-
+
+The next one calculates the total payoff value for a player after a round.
+
+-}
+
 totalPayoffValue :: MoveState -> PayoffFunction -> Player -> PayoffValue
 totalPayoffValue ms pf player = sum (map (\opp -> pval (pf (ms player) (ms opp))) (opps_p player))
+
+{-
+
+The next one considers a player together with his opponents and decides the (actually, one of possibly several) player with the biggest total payoff value after a round. Probably the costlier definition of all!
+
+-}
 
 biggestEarner :: MoveState -> PayoffFunction -> Player -> [Player] -> Player
 biggestEarner ms pf pl [] = pl
@@ -170,12 +181,18 @@ biggestEarner ms pf pl (op:ops)
  | (totalPayoffValue ms pf pl) >= (totalPayoffValue ms pf op) = biggestEarner ms pf pl ops
  | otherwise = biggestEarner ms pf op ops
 
+{-
+
+Here's the update function.
+
+-}
+
 msu_p :: PayoffFunction -> MoveState -> MoveState
 msu_p pf ms pl = ms (biggestEarner ms pf pl (opps_p pl))
 
 {-
 
-Assume as initial move state the one where every player decides it's better to start the game by defecting.
+Back to the Prague toy game, assume as initial move state the one where every player decides it's better to start the game by defecting.
 
 -}
 
@@ -206,7 +223,7 @@ game_p n = map (rounds msu_p pf_p ms_p n) (allValues :: [Player])
 
 {-
 
-Alternative constants.
+Alternative constants to play with. We need more and richer examples, but the running times (remarkably slow even for n = 5!...) are a bit disheartening. 
 
 -}
 
